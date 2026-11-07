@@ -1,0 +1,6 @@
+# Long chain, to demonstrate the depth limit
+A: B
+B: C
+C: D
+D: E
+E:

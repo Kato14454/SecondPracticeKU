@@ -5,11 +5,10 @@ import sys
 from typing import Optional, Sequence
 
 from depgraph.config import Config, ConfigError, build_config
-from depgraph.nuget import (
-    Dependency,
-    RepositoryError,
-    get_direct_dependencies,
-)
+from depgraph.graph import Graph, Source, build_graph
+from depgraph.nuget import NugetSource, RepositoryError
+from depgraph.report import format_graph
+from depgraph.testrepo import load_test_repository
 
 DEFAULT_OUTPUT = "graph.svg"
 DEFAULT_MAX_DEPTH = 3
@@ -34,7 +33,8 @@ def add_source_options(parser: argparse.ArgumentParser) -> None:
         help="treat --repo as a path to a test repository file",
     )
     parser.add_argument(
-        "--package-version", required=True, help="version of the package"
+        "--package-version",
+        help="version of the package (not needed in test mode)",
     )
 
 
@@ -69,16 +69,26 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def format_dependencies(
-    config: Config, dependencies: Sequence[Dependency]
-) -> str:
-    """Return direct dependencies as text, one package per line."""
-    lines = [f"Direct dependencies of {config.package} {config.version}:"]
-    if not dependencies:
-        lines.append("  (none)")
-    for dependency in dependencies:
-        lines.append(f"  {dependency.name} {dependency.version_range}")
-    return "\n".join(lines)
+def create_source(config: Config) -> Source:
+    """Return the package source selected by the configuration."""
+    if not config.test_mode:
+        return NugetSource(config.repo)
+    source = load_test_repository(config.repo)
+    if not source.contains(config.package):
+        raise RepositoryError(
+            f"package {config.package} is not in {config.repo}"
+        )
+    return source
+
+
+def make_graph(config: Config) -> Graph:
+    """Build the dependency graph described by the configuration."""
+    return build_graph(
+        create_source(config),
+        config.package,
+        config.version,
+        config.max_depth,
+    )
 
 
 def report_error(message: object, code: int) -> int:
@@ -94,15 +104,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         config = build_config(args)
     except ConfigError as error:
         return report_error(error, EXIT_CONFIG_ERROR)
-    if config.test_mode:
-        return report_error(
-            "test mode is not available before stage 3", EXIT_CONFIG_ERROR
-        )
     try:
-        dependencies = get_direct_dependencies(
-            config.repo, config.package, config.version
-        )
+        graph = make_graph(config)
     except RepositoryError as error:
         return report_error(error, EXIT_RUNTIME_ERROR)
-    print(format_dependencies(config, dependencies))
+    print(format_graph(graph))
     return EXIT_OK

@@ -65,6 +65,12 @@ class ValidateVersionTest(unittest.TestCase):
         for version in ("", "abc", "1", "1.x.0"):
             with self.assertRaises(ConfigError):
                 validate_version(version)
+    def test_missing_version_is_an_error(self):
+        with self.assertRaises(ConfigError):
+            validate_version(None)
+
+    def test_missing_version_is_allowed_in_test_mode(self):
+        self.assertEqual(validate_version(None, test_mode=True), "")
 
 
 class ValidateOutputTest(unittest.TestCase):

@@ -4,6 +4,7 @@ import argparse
 import os
 import re
 from dataclasses import dataclass
+from typing import Optional
 from urllib.parse import urlparse
 
 PACKAGE_NAME_PATTERN = re.compile(r"[A-Za-z0-9_.\-]+")
@@ -54,8 +55,12 @@ def validate_repo(repo: str, test_mode: bool) -> str:
     return repo
 
 
-def validate_version(version: str) -> str:
-    """Check the package version and return it unchanged."""
+def validate_version(version: Optional[str], test_mode: bool = False) -> str:
+    """Check the package version; it may be omitted in test mode."""
+    if version is None:
+        if test_mode:
+            return ""
+        raise ConfigError("package version is required: --package-version")
     if not VERSION_PATTERN.fullmatch(version):
         raise ConfigError(f"invalid package version: {version!r}")
     return version
@@ -86,7 +91,7 @@ def build_config(args: argparse.Namespace) -> Config:
         package=validate_package(args.package),
         repo=validate_repo(args.repo, args.test_mode),
         test_mode=args.test_mode,
-        version=validate_version(args.package_version),
+        version=validate_version(args.package_version, args.test_mode),
         output=validate_output(args.output),
         ascii_tree=args.ascii_tree,
         max_depth=validate_max_depth(args.max_depth),

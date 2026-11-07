@@ -1,0 +1,3 @@
+# Broken file: package names must be capital Latin letters
+A: B
+b: C

@@ -91,6 +91,62 @@ class BuildNuspecUrlTest(unittest.TestCase):
         self.assertEqual(url, expected)
 
 
+class NormalizeVersionTest(unittest.TestCase):
+    """Tests for normalize_version."""
+
+    def test_missing_parts_are_filled(self):
+        self.assertEqual(nuget.normalize_version("1.0"), "1.0.0")
+        self.assertEqual(nuget.normalize_version("2"), "2.0.0")
+
+    def test_zero_fourth_part_is_dropped(self):
+        self.assertEqual(nuget.normalize_version("1.2.3.0"), "1.2.3")
+
+    def test_nonzero_fourth_part_is_kept(self):
+        self.assertEqual(nuget.normalize_version("1.2.3.4"), "1.2.3.4")
+
+    def test_leading_zeros_are_removed(self):
+        self.assertEqual(nuget.normalize_version("01.02.003"), "1.2.3")
+
+    def test_prerelease_is_lowercase_and_metadata_removed(self):
+        version = nuget.normalize_version("1.0.0-Beta.1+Build5")
+        self.assertEqual(version, "1.0.0-beta.1")
+
+
+class ResolveVersionTest(unittest.TestCase):
+    """Tests for resolve_version."""
+
+    def test_plain_version(self):
+        self.assertEqual(nuget.resolve_version("4.3.0"), "4.3.0")
+
+    def test_minimum_version(self):
+        self.assertEqual(nuget.resolve_version("[2.0.0, )"), "2.0.0")
+
+    def test_range_uses_lower_bound(self):
+        self.assertEqual(nuget.resolve_version("[1.0, 2.0)"), "1.0")
+
+    def test_only_upper_bound(self):
+        self.assertEqual(nuget.resolve_version("(, 2.0]"), "2.0")
+
+    def test_empty_range(self):
+        self.assertEqual(nuget.resolve_version(""), "")
+
+
+class NugetSourceTest(unittest.TestCase):
+    """Tests for NugetSource."""
+
+    def test_index_is_read_once(self):
+        with mock.patch.object(nuget, "fetch") as fake_fetch:
+            fake_fetch.side_effect = [INDEX, NUSPEC_FLAT, NUSPEC_EMPTY]
+            source = nuget.NugetSource("https://example.org/index.json")
+            first = source.dependencies("Demo", "1.0")
+            second = source.dependencies("Other", "2.0.0")
+        self.assertEqual(first, [Dependency("Alpha", "1.0.0")])
+        self.assertEqual(second, [])
+        urls = [call.args[0] for call in fake_fetch.call_args_list]
+        self.assertEqual(urls[1], f"{BASE}demo/1.0.0/demo.nuspec")
+        self.assertEqual(urls[2], f"{BASE}other/2.0.0/other.nuspec")
+
+
 class GetDirectDependenciesTest(unittest.TestCase):
     """Tests for get_direct_dependencies."""
 

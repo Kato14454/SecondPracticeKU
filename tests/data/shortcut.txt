@@ -1,0 +1,6 @@
+# D is first met deep (A-B-C-D), then close to the root (A-D)
+A: B D
+B: C
+C: D
+D: E
+E:
