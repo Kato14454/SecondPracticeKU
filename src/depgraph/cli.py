@@ -2,14 +2,19 @@
 
 import argparse
 import sys
-from dataclasses import asdict
 from typing import Optional, Sequence
 
 from depgraph.config import Config, ConfigError, build_config
+from depgraph.nuget import (
+    Dependency,
+    RepositoryError,
+    get_direct_dependencies,
+)
 
 DEFAULT_OUTPUT = "graph.svg"
 DEFAULT_MAX_DEPTH = 3
 EXIT_OK = 0
+EXIT_RUNTIME_ERROR = 1
 EXIT_CONFIG_ERROR = 2
 
 
@@ -64,10 +69,22 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def format_config(config: Config) -> str:
-    """Return the parameters as key-value lines."""
-    lines = [f"{key}: {value}" for key, value in asdict(config).items()]
+def format_dependencies(
+    config: Config, dependencies: Sequence[Dependency]
+) -> str:
+    """Return direct dependencies as text, one package per line."""
+    lines = [f"Direct dependencies of {config.package} {config.version}:"]
+    if not dependencies:
+        lines.append("  (none)")
+    for dependency in dependencies:
+        lines.append(f"  {dependency.name} {dependency.version_range}")
     return "\n".join(lines)
+
+
+def report_error(message: object, code: int) -> int:
+    """Print an error message to stderr and return the exit code."""
+    print(f"depgraph: error: {message}", file=sys.stderr)
+    return code
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -76,7 +93,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     try:
         config = build_config(args)
     except ConfigError as error:
-        print(f"depgraph: error: {error}", file=sys.stderr)
-        return EXIT_CONFIG_ERROR
-    print(format_config(config))
+        return report_error(error, EXIT_CONFIG_ERROR)
+    if config.test_mode:
+        return report_error(
+            "test mode is not available before stage 3", EXIT_CONFIG_ERROR
+        )
+    try:
+        dependencies = get_direct_dependencies(
+            config.repo, config.package, config.version
+        )
+    except RepositoryError as error:
+        return report_error(error, EXIT_RUNTIME_ERROR)
+    print(format_dependencies(config, dependencies))
     return EXIT_OK
