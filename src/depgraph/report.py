@@ -3,6 +3,7 @@
 from typing import List
 
 from depgraph.graph import Graph
+from depgraph.order import load_order
 
 
 def label(graph: Graph, name: str) -> str:
@@ -46,3 +47,21 @@ def format_graph(graph: Graph) -> str:
         f"{len(graph.depths)} packages, {count} dependencies"
     )
     return "\n".join([title] + format_edges(graph) + format_notes(graph))
+
+
+def format_load_order(graph: Graph) -> str:
+    """Return the load order of dependencies as text."""
+    order = load_order(graph)
+    title = (
+        f"Load order of {label(graph, graph.root)} "
+        f"(dependencies first, max depth {graph.max_depth}): "
+        f"{len(order)} packages"
+    )
+    lines = [
+        f"  {number}. {label(graph, name)}"
+        for number, name in enumerate(order, start=1)
+    ]
+    notes = format_notes(graph)
+    if graph.cycles:
+        notes.append("Edges that close cycles were ignored in the order.")
+    return "\n".join([title] + lines + notes)

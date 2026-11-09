@@ -91,6 +91,35 @@ class TestModeTest(unittest.TestCase):
         self.assertIn("not found", err)
 
 
+class LoadOrderModeTest(unittest.TestCase):
+    """Tests of main with the --load-order option."""
+
+    def test_diamond_order(self):
+        args = test_args(DIAMOND, "A", "--load-order")
+        code, out, _ = run_main(args)
+        self.assertEqual(code, EXIT_OK)
+        expected = ["  1. D", "  2. B", "  3. E", "  4. C", "  5. A"]
+        self.assertEqual(out.splitlines()[1:], expected)
+
+    def test_graph_is_not_printed_in_this_mode(self):
+        args = test_args(DIAMOND, "A", "--load-order")
+        _, out, _ = run_main(args)
+        self.assertNotIn("Dependency graph of", out)
+
+    def test_cycle_is_reported(self):
+        args = test_args(CYCLE, "A", "--load-order", "--max-depth", "5")
+        code, out, _ = run_main(args)
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("  A -> B -> C -> A", out)
+        self.assertIn("  4. A", out)
+
+    def test_depth_limit_is_used(self):
+        args = test_args(CHAIN, "A", "--load-order", "--max-depth", "2")
+        _, out, _ = run_main(args)
+        self.assertIn("  1. C", out)
+        self.assertNotIn(". D", out)
+
+
 class RealModeTest(unittest.TestCase):
     """Tests of main with a repository URL (the network is replaced)."""
 

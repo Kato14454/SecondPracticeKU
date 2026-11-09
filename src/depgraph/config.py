@@ -31,6 +31,7 @@ class Config:
     output: str
     ascii_tree: bool
     max_depth: int
+    load_order: bool = False
 
 
 def validate_package(name: str) -> str:
@@ -95,4 +96,5 @@ def build_config(args: argparse.Namespace) -> Config:
         output=validate_output(args.output),
         ascii_tree=args.ascii_tree,
         max_depth=validate_max_depth(args.max_depth),
+        load_order=args.load_order,
     )

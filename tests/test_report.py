@@ -3,7 +3,7 @@
 import unittest
 
 from depgraph.graph import build_graph
-from depgraph.report import format_graph
+from depgraph.report import format_graph, format_load_order
 from depgraph.testrepo import FileSource, parse_test_repository
 
 
@@ -39,3 +39,25 @@ class FormatGraphTest(unittest.TestCase):
         text = format_graph(graph_of("A: B\nB:\n", 5))
         self.assertNotIn("Cycles", text)
         self.assertNotIn("Depth limit", text)
+
+
+class FormatLoadOrderTest(unittest.TestCase):
+    """Tests for format_load_order."""
+
+    def test_numbered_list_with_dependencies_first(self):
+        text = format_load_order(graph_of("A: B\nB: C\nC:\n", 5))
+        lines = text.splitlines()
+        self.assertEqual(
+            lines[0],
+            "Load order of A (dependencies first, max depth 5): 3 packages",
+        )
+        self.assertEqual(lines[1:], ["  1. C", "  2. B", "  3. A"])
+
+    def test_cycle_is_explained(self):
+        text = format_load_order(graph_of("A: B\nB: A\n", 5))
+        self.assertIn("Cycles found:", text)
+        self.assertIn("ignored in the order", text)
+
+    def test_depth_limit_is_reported(self):
+        text = format_load_order(graph_of("A: B\nB: C\nC:\n", 1))
+        self.assertIn("Depth limit reached, not expanded: B", text)

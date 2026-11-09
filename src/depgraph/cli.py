@@ -7,7 +7,7 @@ from typing import Optional, Sequence
 from depgraph.config import Config, ConfigError, build_config
 from depgraph.graph import Graph, Source, build_graph
 from depgraph.nuget import NugetSource, RepositoryError
-from depgraph.report import format_graph
+from depgraph.report import format_graph, format_load_order
 from depgraph.testrepo import load_test_repository
 
 DEFAULT_OUTPUT = "graph.svg"
@@ -56,6 +56,11 @@ def add_output_options(parser: argparse.ArgumentParser) -> None:
         default=DEFAULT_MAX_DEPTH,
         help="maximum dependency analysis depth (default: %(default)s)",
     )
+    parser.add_argument(
+        "--load-order",
+        action="store_true",
+        help="print the order in which dependencies must be loaded",
+    )
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -91,6 +96,13 @@ def make_graph(config: Config) -> Graph:
     )
 
 
+def render(config: Config, graph: Graph) -> str:
+    """Return the text selected by the output mode."""
+    if config.load_order:
+        return format_load_order(graph)
+    return format_graph(graph)
+
+
 def report_error(message: object, code: int) -> int:
     """Print an error message to stderr and return the exit code."""
     print(f"depgraph: error: {message}", file=sys.stderr)
@@ -108,5 +120,5 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         graph = make_graph(config)
     except RepositoryError as error:
         return report_error(error, EXIT_RUNTIME_ERROR)
-    print(format_graph(graph))
+    print(render(config, graph))
     return EXIT_OK
