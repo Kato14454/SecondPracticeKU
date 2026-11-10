@@ -6,9 +6,12 @@ from typing import Optional, Sequence
 
 from depgraph.config import Config, ConfigError, build_config
 from depgraph.graph import Graph, Source, build_graph
+from depgraph.mermaid import format_mermaid
 from depgraph.nuget import NugetSource, RepositoryError
 from depgraph.report import format_graph, format_load_order
+from depgraph.svg import write_svg
 from depgraph.testrepo import load_test_repository
+from depgraph.tree import format_tree
 
 DEFAULT_OUTPUT = "graph.svg"
 DEFAULT_MAX_DEPTH = 3
@@ -100,7 +103,22 @@ def render(config: Config, graph: Graph) -> str:
     """Return the text selected by the output mode."""
     if config.load_order:
         return format_load_order(graph)
-    return format_graph(graph)
+    parts = [format_graph(graph)]
+    if config.ascii_tree:
+        parts.append("ASCII tree:\n" + format_tree(graph))
+    parts.append("Mermaid:\n" + format_mermaid(graph))
+    return "\n\n".join(parts)
+
+
+def save_image(config: Config, graph: Graph) -> int:
+    """Save the SVG image of the graph and return an exit code."""
+    try:
+        write_svg(config.output, graph)
+    except OSError as error:
+        message = f"cannot write {config.output}: {error}"
+        return report_error(message, EXIT_RUNTIME_ERROR)
+    print(f"\nSVG saved: {config.output}")
+    return EXIT_OK
 
 
 def report_error(message: object, code: int) -> int:
@@ -121,4 +139,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     except RepositoryError as error:
         return report_error(error, EXIT_RUNTIME_ERROR)
     print(render(config, graph))
-    return EXIT_OK
+    if config.load_order:
+        return EXIT_OK
+    return save_image(config, graph)

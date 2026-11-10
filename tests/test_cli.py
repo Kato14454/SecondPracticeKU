@@ -2,6 +2,7 @@
 
 import io
 import os
+import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
@@ -14,7 +15,7 @@ from depgraph.cli import (
 )
 from depgraph.nuget import Dependency, RepositoryError
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+DATA_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), "data")
 DIAMOND = os.path.join(DATA_DIR, "diamond.txt")
 CYCLE = os.path.join(DATA_DIR, "cycle.txt")
 CHAIN = os.path.join(DATA_DIR, "chain.txt")
@@ -29,10 +30,20 @@ NUGET_SOURCE = "depgraph.cli.NugetSource"
 
 
 def run_main(args):
-    """Run main and return the exit code, stdout and stderr."""
+    """Run main in a temporary folder; return the code, stdout and stderr.
+
+    The folder keeps the SVG file that main writes by default out of
+    the project.
+    """
     out, err = io.StringIO(), io.StringIO()
-    with redirect_stdout(out), redirect_stderr(err):
-        code = main(args)
+    previous = os.getcwd()
+    with tempfile.TemporaryDirectory() as directory:
+        os.chdir(directory)
+        try:
+            with redirect_stdout(out), redirect_stderr(err):
+                code = main(args)
+        finally:
+            os.chdir(previous)
     return code, out.getvalue(), err.getvalue()
 
 
@@ -118,6 +129,50 @@ class LoadOrderModeTest(unittest.TestCase):
         _, out, _ = run_main(args)
         self.assertIn("  1. C", out)
         self.assertNotIn(". D", out)
+
+
+class VisualizationTest(unittest.TestCase):
+    """Tests of the ASCII tree, Mermaid and SVG output."""
+
+    def test_mermaid_is_printed(self):
+        code, out, _ = run_main(test_args(DIAMOND))
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("Mermaid:\ngraph TD", out)
+        self.assertIn("    n0 --> n1", out)
+
+    def test_ascii_tree_only_with_option(self):
+        _, plain, _ = run_main(test_args(DIAMOND))
+        _, tree, _ = run_main(test_args(DIAMOND, "A", "--ascii-tree"))
+        self.assertNotIn("ASCII tree:", plain)
+        self.assertIn("ASCII tree:\nA\n|-- B", tree)
+        self.assertIn("    |-- D (*)", tree)
+
+    def test_svg_is_saved_to_the_given_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "result.svg")
+            args = test_args(DIAMOND, "A", "--output", path)
+            code, out, _ = run_main(args)
+            self.assertEqual(code, EXIT_OK)
+            self.assertIn(f"SVG saved: {path}", out)
+            with open(path, encoding="utf-8") as file:
+                self.assertTrue(file.read().startswith("<svg"))
+
+    def test_load_order_mode_does_not_write_a_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "result.svg")
+            args = test_args(DIAMOND, "A", "--load-order", "--output", path)
+            code, out, _ = run_main(args)
+            self.assertEqual(code, EXIT_OK)
+            self.assertNotIn("SVG saved", out)
+            self.assertFalse(os.path.exists(path))
+
+    def test_unwritable_output_is_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "folder.svg")
+            os.mkdir(path)
+            code, _, err = run_main(test_args(DIAMOND, "A", "--output", path))
+            self.assertEqual(code, EXIT_RUNTIME_ERROR)
+            self.assertIn("cannot write", err)
 
 
 class RealModeTest(unittest.TestCase):
