@@ -1,5 +1,3 @@
-"""Command-line interface of the dependency graph tool."""
-
 import argparse
 import sys
 from typing import Optional, Sequence

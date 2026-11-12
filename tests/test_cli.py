@@ -47,7 +47,7 @@ def run_main(args):
     return code, out.getvalue(), err.getvalue()
 
 
-def test_args(path, package="A", *extra):
+def make_args(path, package="A", *extra):
     """Build arguments for a run on a test repository file."""
     return ["--package", package, "--repo", path, "--test-mode", *extra]
 
@@ -56,48 +56,48 @@ class TestModeTest(unittest.TestCase):
     """Tests of main in test repository mode."""
 
     def test_diamond(self):
-        code, out, _ = run_main(test_args(DIAMOND))
+        code, out, _ = run_main(make_args(DIAMOND))
         self.assertEqual(code, EXIT_OK)
         self.assertIn("5 packages, 5 dependencies", out)
         self.assertIn("  A -> B, C", out)
         self.assertIn("  C -> D, E", out)
 
     def test_cycle(self):
-        code, out, _ = run_main(test_args(CYCLE))
+        code, out, _ = run_main(make_args(CYCLE))
         self.assertEqual(code, EXIT_OK)
         self.assertIn("  A -> B -> C -> A", out)
 
     def test_depth_limit(self):
-        args = test_args(CHAIN, "A", "--max-depth", "2")
+        args = make_args(CHAIN, "A", "--max-depth", "2")
         code, out, _ = run_main(args)
         self.assertEqual(code, EXIT_OK)
         self.assertIn("Depth limit reached, not expanded: C", out)
         self.assertNotIn("C -> D", out)
 
     def test_shortcut_is_expanded(self):
-        args = test_args(SHORTCUT, "A", "--max-depth", "3")
+        args = make_args(SHORTCUT, "A", "--max-depth", "3")
         code, out, _ = run_main(args)
         self.assertEqual(code, EXIT_OK)
         self.assertIn("  D -> E", out)
 
     def test_start_from_inner_package(self):
-        code, out, _ = run_main(test_args(DIAMOND, "C"))
+        code, out, _ = run_main(make_args(DIAMOND, "C"))
         self.assertEqual(code, EXIT_OK)
         self.assertIn("  C -> D, E", out)
         self.assertNotIn("  A ->", out)
 
     def test_unknown_package(self):
-        code, _, err = run_main(test_args(DIAMOND, "Z"))
+        code, _, err = run_main(make_args(DIAMOND, "Z"))
         self.assertEqual(code, EXIT_RUNTIME_ERROR)
         self.assertIn("package Z is not in", err)
 
     def test_broken_file(self):
-        code, _, err = run_main(test_args(BROKEN))
+        code, _, err = run_main(make_args(BROKEN))
         self.assertEqual(code, EXIT_RUNTIME_ERROR)
         self.assertIn("line 3", err)
 
     def test_missing_file(self):
-        code, _, err = run_main(test_args("no_such_file.txt"))
+        code, _, err = run_main(make_args("no_such_file.txt"))
         self.assertEqual(code, EXIT_CONFIG_ERROR)
         self.assertIn("not found", err)
 
@@ -106,26 +106,26 @@ class LoadOrderModeTest(unittest.TestCase):
     """Tests of main with the --load-order option."""
 
     def test_diamond_order(self):
-        args = test_args(DIAMOND, "A", "--load-order")
+        args = make_args(DIAMOND, "A", "--load-order")
         code, out, _ = run_main(args)
         self.assertEqual(code, EXIT_OK)
         expected = ["  1. D", "  2. B", "  3. E", "  4. C", "  5. A"]
         self.assertEqual(out.splitlines()[1:], expected)
 
     def test_graph_is_not_printed_in_this_mode(self):
-        args = test_args(DIAMOND, "A", "--load-order")
+        args = make_args(DIAMOND, "A", "--load-order")
         _, out, _ = run_main(args)
         self.assertNotIn("Dependency graph of", out)
 
     def test_cycle_is_reported(self):
-        args = test_args(CYCLE, "A", "--load-order", "--max-depth", "5")
+        args = make_args(CYCLE, "A", "--load-order", "--max-depth", "5")
         code, out, _ = run_main(args)
         self.assertEqual(code, EXIT_OK)
         self.assertIn("  A -> B -> C -> A", out)
         self.assertIn("  4. A", out)
 
     def test_depth_limit_is_used(self):
-        args = test_args(CHAIN, "A", "--load-order", "--max-depth", "2")
+        args = make_args(CHAIN, "A", "--load-order", "--max-depth", "2")
         _, out, _ = run_main(args)
         self.assertIn("  1. C", out)
         self.assertNotIn(". D", out)
@@ -135,14 +135,14 @@ class VisualizationTest(unittest.TestCase):
     """Tests of the ASCII tree, Mermaid and SVG output."""
 
     def test_mermaid_is_printed(self):
-        code, out, _ = run_main(test_args(DIAMOND))
+        code, out, _ = run_main(make_args(DIAMOND))
         self.assertEqual(code, EXIT_OK)
         self.assertIn("Mermaid:\ngraph TD", out)
         self.assertIn("    n0 --> n1", out)
 
     def test_ascii_tree_only_with_option(self):
-        _, plain, _ = run_main(test_args(DIAMOND))
-        _, tree, _ = run_main(test_args(DIAMOND, "A", "--ascii-tree"))
+        _, plain, _ = run_main(make_args(DIAMOND))
+        _, tree, _ = run_main(make_args(DIAMOND, "A", "--ascii-tree"))
         self.assertNotIn("ASCII tree:", plain)
         self.assertIn("ASCII tree:\nA\n|-- B", tree)
         self.assertIn("    |-- D (*)", tree)
@@ -150,7 +150,7 @@ class VisualizationTest(unittest.TestCase):
     def test_svg_is_saved_to_the_given_file(self):
         with tempfile.TemporaryDirectory() as directory:
             path = os.path.join(directory, "result.svg")
-            args = test_args(DIAMOND, "A", "--output", path)
+            args = make_args(DIAMOND, "A", "--output", path)
             code, out, _ = run_main(args)
             self.assertEqual(code, EXIT_OK)
             self.assertIn(f"SVG saved: {path}", out)
@@ -160,7 +160,7 @@ class VisualizationTest(unittest.TestCase):
     def test_load_order_mode_does_not_write_a_file(self):
         with tempfile.TemporaryDirectory() as directory:
             path = os.path.join(directory, "result.svg")
-            args = test_args(DIAMOND, "A", "--load-order", "--output", path)
+            args = make_args(DIAMOND, "A", "--load-order", "--output", path)
             code, out, _ = run_main(args)
             self.assertEqual(code, EXIT_OK)
             self.assertNotIn("SVG saved", out)
@@ -170,7 +170,7 @@ class VisualizationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = os.path.join(directory, "folder.svg")
             os.mkdir(path)
-            code, _, err = run_main(test_args(DIAMOND, "A", "--output", path))
+            code, _, err = run_main(make_args(DIAMOND, "A", "--output", path))
             self.assertEqual(code, EXIT_RUNTIME_ERROR)
             self.assertIn("cannot write", err)
 

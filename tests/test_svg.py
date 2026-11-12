@@ -3,7 +3,7 @@
 import os
 import tempfile
 import unittest
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as etree
 
 from depgraph.graph import build_graph
 from depgraph.svg import layout, render_svg, write_svg
@@ -21,7 +21,7 @@ def graph_of(text, depth=5, root="A"):
 
 def elements(svg_text, tag, kind=None):
     """Return elements with a tag and, optionally, a class word."""
-    root = ET.fromstring(svg_text)
+    root = etree.fromstring(svg_text)
     found = root.iter(SVG_NAMESPACE + tag)
     if kind is None:
         return list(found)
@@ -32,7 +32,7 @@ class RenderSvgTest(unittest.TestCase):
     """Tests for render_svg."""
 
     def test_result_is_valid_xml_with_svg_root(self):
-        root = ET.fromstring(render_svg(graph_of(DIAMOND)))
+        root = etree.fromstring(render_svg(graph_of(DIAMOND)))
         self.assertEqual(root.tag, SVG_NAMESPACE + "svg")
 
     def test_one_box_per_package_and_one_curve_per_dependency(self):
@@ -50,7 +50,7 @@ class RenderSvgTest(unittest.TestCase):
         graph = build_graph(source, "A", "1<2&3", 3)
         text = render_svg(graph)
         self.assertIn("A 1&lt;2&amp;3", text)
-        ET.fromstring(text)
+        etree.fromstring(text)
 
     def test_root_and_unexpanded_boxes_have_their_own_style(self):
         text = render_svg(graph_of("A: B\nB: C\nC:\n", depth=1))
@@ -109,7 +109,7 @@ class WriteSvgTest(unittest.TestCase):
             path = os.path.join(directory, "graph.svg")
             write_svg(path, graph_of(DIAMOND))
             with open(path, encoding="utf-8") as file:
-                ET.fromstring(file.read())
+                etree.fromstring(file.read())
 
     def test_unwritable_path_raises_os_error(self):
         with tempfile.TemporaryDirectory() as directory:

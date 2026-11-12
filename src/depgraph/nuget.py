@@ -3,7 +3,7 @@
 import json
 import urllib.error
 import urllib.request
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as etree
 from dataclasses import dataclass
 from typing import Dict, List
 
@@ -104,8 +104,8 @@ def parse_dependencies(nuspec: bytes) -> List[Dependency]:
     several times is reported once, with its first version range.
     """
     try:
-        root = ET.fromstring(nuspec)
-    except ET.ParseError as error:
+        root = etree.fromstring(nuspec)
+    except etree.ParseError as error:
         raise RepositoryError(f"invalid nuspec file: {error}") from error
     found: Dict[str, str] = {}
     for element in root.iter():
